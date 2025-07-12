@@ -16,16 +16,16 @@ void bubbleSort(vector<int> &arr)
 {
     for (int i = 0; i < arr.size() - 1; ++i)
     {
-        bool isSort = false;
+        bool swapped = false;
         for (int j = 0; j < arr.size() - i - 1; ++j)
         {
             if (arr[j] > arr[j + 1])
             {
-                isSort = true;
+                swapped = true;
                 swap(arr[j], arr[j + 1]);
             }
         }
-        if (!isSort)
+        if (!swapped)
             return;
     }
 }
@@ -105,7 +105,7 @@ void mergeSort(vector<int> &arr, int l, int r)
     mergeSort(arr, m + 1, r); // 递归对[m+1,r]排序
     merge(arr, l, m, r);      // 合并两半
 }
-//三路归并排序
+// 三路归并排序
 class TriplePathMergeSortSolution
 {
 public:
