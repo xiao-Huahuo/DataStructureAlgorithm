@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Heap Sort Visualization</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background: #f0f0f0;
+            padding: 20px;
+        }
+
+        .bar {
+            display: inline-block;
+            width: 20px;
+            margin: 1px;
+            background: steelblue;
+            vertical-align: bottom;
+        }
+
+        #bars {
+            height: 200px;
+            display: flex;
+            align-items: flex-end;
+        }
+
+        button {
+            margin-top: 20px;
+            padding: 8px 16px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Heap Sort Visualization</h1>
+    <div id="bars"></div>
+    <button onclick="startSort()">Start Sort</button>
+
+    <script>
+        const data = Array.from({ length: 10 }, () => Math.floor(Math.random() * 90) + 10);
+        const bars = document.getElementById('bars');
+
+        function draw(array) {
+            bars.innerHTML = '';
+            array.forEach(value => {
+                const bar = document.createElement('div');
+                bar.className = 'bar';
+                bar.style.height = `${value * 2}px`;
+                bars.appendChild(bar);
+            });
+        }
+
+        async function heapSort(array) {
+            const n = array.length;
+
+            async function heapify(n, i) {
+                let largest = i;
+                const l = 2 * i + 1;
+                const r = 2 * i + 2;
+                if (l < n && array[l] > array[largest]) largest = l;
+                if (r < n && array[r] > array[largest]) largest = r;
+                if (largest !== i) {
+                    [array[i], array[largest]] = [array[largest], array[i]];
+                    draw(array);
+                    await sleep(500);
+                    await heapify(n, largest);
+                }
+            }
+
+            for (let i = Math.floor(n / 2) - 1; i >= 0; i--) {
+                await heapify(n, i);
+            }
+
+            for (let i = n - 1; i > 0; i--) {
+                [array[0], array[i]] = [array[i], array[0]];
+                draw(array);
+                await sleep(500);
+                await heapify(i, 0);
+            }
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        function startSort() {
+            heapSort([...data]);
+        }
+
+        draw(data);
+    </script>
+</body>
+
+</html>

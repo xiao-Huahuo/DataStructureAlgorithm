@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AVL Tree Rotations Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 10px;
+            background: #f9f9f9;
+        }
+
+        .tree {
+            position: relative;
+            width: 600px;
+            height: 320px;
+            margin: 20px auto;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+        }
+
+        .node {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background: #4caf50;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 40px;
+            font-weight: bold;
+            box-shadow: 0 0 8px #2e7d32;
+            transition: all 1s ease;
+        }
+
+        .line {
+            position: absolute;
+            background: #555;
+            transform-origin: top left;
+        }
+
+        .controls {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        button {
+            margin: 5px;
+            padding: 8px 15px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+            border: none;
+            background-color: #1976d2;
+            color: white;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+        }
+
+        button:hover {
+            background-color: #1565c0;
+        }
+
+        .highlight {
+            background: #ff5722 !important;
+            box-shadow: 0 0 15px #e64a19 !important;
+        }
+
+        .caption {
+            text-align: center;
+            font-weight: bold;
+            margin-top: 10px;
+            font-size: 18px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="controls">
+        <button onclick="startAnimation('LL')">LL 右旋</button>
+        <button onclick="startAnimation('RR')">RR 左旋</button>
+        <button onclick="startAnimation('LR')">LR 先左后右</button>
+        <button onclick="startAnimation('RL')">RL 先右后左</button>
+    </div>
+
+    <div class="tree" id="tree"></div>
+    <div class="caption" id="caption"></div>
+
+    <script>
+        // 节点数据结构
+        class Node {
+            constructor(id, val, x, y) {
+                this.id = id;
+                this.val = val;
+                this.x = x; // 中心坐标x
+                this.y = y; // 中心坐标y
+                this.elem = null; // DOM元素
+            }
+        }
+        // 连接线数据结构
+        class Line {
+            constructor(id, x1, y1, x2, y2) {
+                this.id = id;
+                this.x1 = x1;
+                this.y1 = y1;
+                this.x2 = x2;
+                this.y2 = y2;
+                this.elem = null; // DOM元素
+            }
+        }
+
+        // 创建DOM节点元素
+        function createNodeElem(node) {
+            let div = document.createElement('div');
+            div.className = 'node';
+            div.innerText = node.val;
+            div.style.left = (node.x - 20) + 'px';
+            div.style.top = (node.y - 20) + 'px';
+            return div;
+        }
+        // 创建线条元素
+        function createLineElem(line) {
+            let div = document.createElement('div');
+            div.className = 'line';
+            let length = Math.hypot(line.x2 - line.x1, line.y2 - line.y1);
+            div.style.width = length + 'px';
+            div.style.height = '2px';
+            div.style.left = line.x1 + 'px';
+            div.style.top = line.y1 + 'px';
+            let angle = Math.atan2(line.y2 - line.y1, line.x2 - line.x1) * 180 / Math.PI;
+            div.style.transform = `rotate(${angle}deg)`;
+            return div;
+        }
+
+        // 清空树DOM
+        function clearTree() {
+            const tree = document.getElementById('tree');
+            tree.innerHTML = '';
+        }
+
+        // 渲染树节点和线条
+        function renderTree(nodes, lines) {
+            clearTree();
+            const tree = document.getElementById('tree');
+            for (let line of lines) {
+                line.elem = createLineElem(line);
+                tree.appendChild(line.elem);
+            }
+            for (let node of nodes) {
+                node.elem = createNodeElem(node);
+                tree.appendChild(node.elem);
+            }
+        }
+
+        // 动画辅助函数：移动节点到新位置
+        function moveNode(node, newX, newY, highlight = false) {
+            if (highlight) node.elem.classList.add('highlight');
+            else node.elem.classList.remove('highlight');
+            node.x = newX;
+            node.y = newY;
+            node.elem.style.left = (newX - 20) + 'px';
+            node.elem.style.top = (newY - 20) + 'px';
+        }
+
+        // 动画辅助函数：更新线条坐标
+        function updateLine(line, x1, y1, x2, y2) {
+            line.x1 = x1;
+            line.y1 = y1;
+            line.x2 = x2;
+            line.y2 = y2;
+            let length = Math.hypot(x2 - x1, y2 - y1);
+            line.elem.style.width = length + 'px';
+            line.elem.style.left = x1 + 'px';
+            line.elem.style.top = y1 + 'px';
+            let angle = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
+            line.elem.style.transform = `rotate(${angle}deg)`;
+        }
+
+        // 延迟函数，方便动画流程
+        function delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        ///////////////////////////////////////////////////////////
+        // 以下为四种旋转的具体动画逻辑：
+
+        // 基础树布局参数
+        const ROOT_Y = 50;
+        const LEVEL_GAP_Y = 80;
+        const NODE_GAP_X = 100;
+
+        // 准备四种旋转的树结构和动画步骤
+
+        async function animateLL() {
+            /*
+               LL旋转前：
+                    z(30,50)
+                    /
+                  y(20,130)
+                 /
+               x(10,210)
+            */
+            const nodes = [
+                new Node('z', 30, 300, ROOT_Y),
+                new Node('y', 20, 200, ROOT_Y + LEVEL_GAP_Y),
+                new Node('x', 10, 100, ROOT_Y + 2 * LEVEL_GAP_Y)
+            ];
+            const lines = [
+                new Line('zy', nodes[0].x, nodes[0].y, nodes[1].x, nodes[1].y),
+                new Line('yx', nodes[1].x, nodes[1].y, nodes[2].x, nodes[2].y),
+            ];
+            renderTree(nodes, lines);
+            setCaption("LL 旋转前（右旋）");
+
+            await delay(1500);
+
+            // 右旋过程（动画分两步）
+
+            // 步骤1：突出显示z和y
+            nodes[0].elem.classList.add('highlight');
+            nodes[1].elem.classList.add('highlight');
+            setCaption("开始右旋：z 右旋，y 成为根");
+
+            await delay(1500);
+
+            // 步骤2：移动节点模拟右旋
+            // y上移到z位置
+            moveNode(nodes[1], nodes[0].x, nodes[0].y, true);
+            // z下移到y右侧
+            moveNode(nodes[0], nodes[0].x + NODE_GAP_X, nodes[0].y + LEVEL_GAP_Y, true);
+            // x左移到y左侧
+            moveNode(nodes[2], nodes[0].x - NODE_GAP_X, nodes[0].y + 2 * LEVEL_GAP_Y, true);
+
+            // 更新连线
+            updateLine(lines[0], nodes[1].x, nodes[1].y, nodes[2].x, nodes[2].y);
+            updateLine(lines[1], nodes[1].x, nodes[1].y, nodes[0].x, nodes[0].y);
+
+            await delay(2000);
+
+            // 结束，去掉高亮
+            for (let n of nodes) n.elem.classList.remove('highlight');
+            setCaption("右旋完成，树恢复平衡");
+        }
+
+        async function animateRR() {
+            /*
+               RR旋转前：
+               z(30,50)
+                 \
+                  y(40,130)
+                    \
+                     x(50,210)
+            */
+            const nodes = [
+                new Node('z', 30, 300, ROOT_Y),
+                new Node('y', 40, 400, ROOT_Y + LEVEL_GAP_Y),
+                new Node('x', 50, 500, ROOT_Y + 2 * LEVEL_GAP_Y)
+            ];
+            const lines = [
+                new Line('zy', nodes[0].x, nodes[0].y, nodes[1].x, nodes[1].y),
+                new Line('yx', nodes[1].x, nodes[1].y, nodes[2].x, nodes[2].y),
+            ];
+            renderTree(nodes, lines);
+            setCaption("RR 旋转前（左旋）");
+
+            await delay(1500);
+
+            nodes[0].elem.classList.add('highlight');
+            nodes[1].elem.classList.add('highlight');
+            setCaption("开始左旋：z 左旋，y 成为根");
+
+            await delay(1500);
+
+            // 左旋过程
+            // y上移到z位置
+            moveNode(nodes[1], nodes[0].x, nodes[0].y, true);
+            // z下移到y左侧
+            moveNode(nodes[0], nodes[0].x - NODE_GAP_X, nodes[0].y + LEVEL_GAP_Y, true);
+            // x右移到y右侧
+            moveNode(nodes[2], nodes[0].x + NODE_GAP_X, nodes[0].y + 2 * LEVEL_GAP_Y, true);
+
+            // 更新连线
+            updateLine(lines[0], nodes[1].x, nodes[1].y, nodes[0].x, nodes[0].y);
+            updateLine(lines[1], nodes[1].x, nodes[1].y, nodes[2].x, nodes[2].y);
+
+            await delay(2000);
+
+            for (let n of nodes) n.elem.classList.remove('highlight');
+            setCaption("左旋完成，树恢复平衡");
+        }
+
+        async function animateLR() {
+            /*
+              LR 旋转前：
+                    z(30,50)
+                    /
+                  y(20,130)
+                    \
+                     x(30,210)
+            */
+            const nodes = [
+                new Node('z', 30, 300, ROOT_Y),
+                new Node('y', 20, 200, ROOT_Y + LEVEL_GAP_Y),
+                new Node('x', 30, 300, ROOT_Y + 2 * LEVEL_GAP_Y)
+            ];
+            const lines = [
+                new Line('zy', nodes[0].x, nodes[0].y, nodes[1].x, nodes[1].y),
+                new Line('yx', nodes[1].x, nodes[1].y, nodes[2].x, nodes[2].y),
+            ];
+            renderTree(nodes, lines);
+            setCaption("LR 旋转前（先左后右）");
+
+            await delay(1500);
+
+            nodes[0].elem.classList.add('highlight');
+            nodes[1].elem.classList.add('highlight');
+            nodes[2].elem.classList.add('highlight');
+            setCaption("第一步：对 y 做左旋");
+
+            await delay(1500);
+
+            // y 左旋，x 移上来，y 移左下
+            moveNode(nodes[2], nodes[1].x, nodes[1].y, true);
+            moveNode(nodes[1], nodes[1].x - NODE_GAP_X, nodes[1].y + LEVEL_GAP_Y, true);
+            // z位置不变
+
+            updateLine(lines[0], nodes[0].x, nodes[0].y, nodes[2].x, nodes[2].y);
+            updateLine(lines[1], nodes[2].x, nodes[2].y, nodes[1].x, nodes[1].y);
+
+            await delay(2000);
+
+            setCaption("第二步：对 z 做右旋");
+
+            // z 右旋，x 移上，z 移右下，y 保持左下
+            moveNode(nodes[2], nodes[0].x, nodes[0].y, true);
+            moveNode(nodes[0], nodes[0].x + NODE_GAP_X, nodes[0].y + LEVEL_GAP_Y, true);
+            // y 不动
+
+            updateLine(lines[0], nodes[2].x, nodes[2].y, nodes[1].x, nodes[1].y);
+            updateLine(lines[1], nodes[2].x, nodes[2].y, nodes[0].x, nodes[0].y);
+
+            await delay(2000);
+
+            for (let n of nodes) n.elem.classList.remove('highlight');
+            setCaption("LR 旋转完成，树恢复平衡");
+        }
+
+        async function animateRL() {
+            /*
+              RL 旋转前：
+                z(30,50)
+                  \
+                   y(40,130)
+                  /
+                 x(30,210)
+            */
+            const nodes = [
+                new Node('z', 30, 300, ROOT_Y),
+                new Node('y', 40, 400, ROOT_Y + LEVEL_GAP_Y),
+                new Node('x', 30, 300, ROOT_Y + 2 * LEVEL_GAP_Y)
+            ];
+            const lines = [
+                new Line('zy', nodes[0].x, nodes[0].y, nodes[1].x, nodes[1].y),
+                new Line('yx', nodes[1].x, nodes[1].y, nodes[2].x, nodes[2].y),
+            ];
+            renderTree(nodes, lines);
+            setCaption("RL 旋转前（先右后左）");
+
+            await delay(1500);
+
+            nodes[0].elem.classList.add('highlight');
+            nodes[1].elem.classList.add('highlight');
+            nodes[2].elem.classList.add('highlight');
+            setCaption("第一步：对 y 做右旋");
+
+            await delay(1500);
+
+            // y 右旋，x 移上，y 移右下
+            moveNode(nodes[2], nodes[1].x, nodes[1].y, true);
+            moveNode(nodes[1], nodes[1].x + NODE_GAP_X, nodes[1].y + LEVEL_GAP_Y, true);
+            // z不动
+
+            updateLine(lines[0], nodes[0].x, nodes[0].y, nodes[2].x, nodes[2].y);
+            updateLine(lines[1], nodes[2].x, nodes[2].y, nodes[1].x, nodes[1].y);
+
+            await delay(2000);
+
+            setCaption("第二步：对 z 做左旋");
+
+            // z 左旋，x 移上，z 移左下，y 保持右下
+            moveNode(nodes[2], nodes[0].x, nodes[0].y, true);
+            moveNode(nodes[0], nodes[0].x - NODE_GAP_X, nodes[0].y + LEVEL_GAP_Y, true);
+            // y 不动
+
+            updateLine(lines[0], nodes[2].x, nodes[2].y, nodes[0].x, nodes[0].y);
+            updateLine(lines[1], nodes[2].x, nodes[2].y, nodes[1].x, nodes[1].y);
+
+            await delay(2000);
+
+            for (let n of nodes) n.elem.classList.remove('highlight');
+            setCaption("RL 旋转完成，树恢复平衡");
+        }
+
+        function setCaption(text) {
+            document.getElementById('caption').innerText = text;
+        }
+
+        function startAnimation(type) {
+            switch (type) {
+                case 'LL': animateLL(); break;
+                case 'RR': animateRR(); break;
+                case 'LR': animateLR(); break;
+                case 'RL': animateRL(); break;
+            }
+        }
+    </script>
+
+</body>
+
+</html>
